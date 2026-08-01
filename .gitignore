@@ -1,0 +1,8 @@
+# personal chat data — never commit
+data/
+
+node_modules/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+.model-cache/
