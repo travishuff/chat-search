@@ -18,9 +18,15 @@ export default async function ConversationPage({
   const { m: targetMessageId } = await searchParams;
   const db = getDb();
 
-  const convo = db
-    .prepare("SELECT * FROM conversations WHERE id = ?")
-    .get(decodeURIComponent(id)) as any;
+  // Next 15 App Router passes route params still percent-encoded (e.g. "claude%3Auuid").
+  // Decode defensively: a malformed sequence like "/c/100%" should 404, not 500.
+  let convoId: string;
+  try {
+    convoId = decodeURIComponent(id);
+  } catch {
+    notFound();
+  }
+  const convo = db.prepare("SELECT * FROM conversations WHERE id = ?").get(convoId) as any;
   if (!convo) notFound();
 
   const messages = db

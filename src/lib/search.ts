@@ -23,35 +23,75 @@ export interface SearchResult {
 const K = 60; // RRF constant
 const CANDIDATES = 80;
 
+/** Build SQL conditions applying filters to message m / conversation c. */
+function filterSql(filters: SearchFilters): { conds: string; params: unknown[] } {
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (filters.sources?.length) {
+    conds.push(`c.source IN (${filters.sources.map(() => "?").join(",")})`);
+    params.push(...filters.sources);
+  }
+  if (filters.role) {
+    conds.push("m.role = ?");
+    params.push(filters.role);
+  }
+  if (filters.after) {
+    conds.push("COALESCE(m.created_at, c.created_at) >= ?");
+    params.push(filters.after);
+  }
+  if (filters.before) {
+    conds.push("COALESCE(m.created_at, c.created_at) <= ?");
+    params.push(filters.before);
+  }
+  return { conds: conds.length ? " AND " + conds.join(" AND ") : "", params };
+}
+
 export async function search(query: string, filters: SearchFilters = {}, limit = 30): Promise<SearchResult[]> {
   const db = getDb();
+  const { conds, params } = filterSql(filters);
 
-  // --- keyword leg (BM25) ---
+  // --- keyword leg (BM25), filters applied before the candidate cap ---
   const ftsQuery = query
     .split(/\s+/)
     .filter(Boolean)
     .map((t) => `"${t.replace(/"/g, "")}"`)
     .join(" ");
-  let ftsRows: { id: string; rank: number }[] = [];
+  let ftsRows: { id: string }[] = [];
   if (ftsQuery) {
     ftsRows = db
       .prepare(
-        `SELECT m.id, rank FROM messages_fts f JOIN messages m ON m.rowid = f.rowid
-         WHERE messages_fts MATCH ? ORDER BY rank LIMIT ?`
+        `SELECT m.id FROM messages_fts f
+         JOIN messages m ON m.rowid = f.rowid
+         JOIN conversations c ON c.id = m.conversation_id
+         WHERE messages_fts MATCH ?${conds}
+         ORDER BY rank LIMIT ?`
       )
-      .all(ftsQuery, CANDIDATES) as any[];
+      .all(ftsQuery, ...params, CANDIDATES) as any[];
   }
 
   // --- semantic leg (KNN over chunks, best chunk per message) ---
+  // vec0 KNN can't join, so pre-filter by handing it the eligible chunk-id set.
   const qvec = await embedQuery(query);
+  const hasFilters = conds.length > 0;
+  const knnParams: unknown[] = [Buffer.from(qvec.buffer), CANDIDATES];
+  let idConstraint = "";
+  if (hasFilters) {
+    idConstraint = `AND chunk_id IN (
+      SELECT ch.id FROM chunks ch
+      JOIN messages m ON m.id = ch.message_id
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE 1=1${conds})`;
+    knnParams.push(...params);
+  }
   const knnRows = db
     .prepare(
-      `SELECT c.message_id AS id, MIN(v.distance) AS distance
-       FROM (SELECT chunk_id, distance FROM chunk_vectors WHERE embedding MATCH ? AND k = ?) v
-       JOIN chunks c ON c.id = v.chunk_id
-       GROUP BY c.message_id ORDER BY distance`
+      `SELECT c2.message_id AS id, MIN(v.distance) AS distance
+       FROM (SELECT chunk_id, distance FROM chunk_vectors
+             WHERE embedding MATCH ? AND k = ? ${idConstraint}) v
+       JOIN chunks c2 ON c2.id = v.chunk_id
+       GROUP BY c2.message_id ORDER BY distance`
     )
-    .all(Buffer.from(qvec.buffer), CANDIDATES) as { id: string; distance: number }[];
+    .all(...knnParams) as { id: string; distance: number }[];
 
   // --- reciprocal rank fusion ---
   const scores = new Map<string, number>();
@@ -60,9 +100,9 @@ export async function search(query: string, filters: SearchFilters = {}, limit =
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
 
-  // --- hydrate + filter ---
+  // --- hydrate (filters already applied in both legs) ---
   const getMsg = db.prepare(`
-    SELECT m.id AS messageId, m.role, m.text, m.created_at AS msgDate,
+    SELECT m.id AS messageId, m.role, m.text,
            c.id AS conversationId, c.source, c.title, c.original_url AS originalUrl,
            c.created_at AS conversationDate
     FROM messages m JOIN conversations c ON c.id = m.conversation_id WHERE m.id = ?
@@ -73,11 +113,6 @@ export async function search(query: string, filters: SearchFilters = {}, limit =
   for (const [id, score] of ranked) {
     const row = getMsg.get(id) as any;
     if (!row) continue;
-    if (filters.sources?.length && !filters.sources.includes(row.source)) continue;
-    if (filters.role && row.role !== filters.role) continue;
-    const d = row.msgDate ?? row.conversationDate;
-    if (filters.after && (!d || d < filters.after)) continue;
-    if (filters.before && (!d || d > filters.before)) continue;
     // Cap per-conversation results so one long chat doesn't flood the page.
     const perConvo = seenConvos.get(row.conversationId) ?? 0;
     if (perConvo >= 3) continue;

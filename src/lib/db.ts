@@ -4,14 +4,17 @@ import path from "path";
 
 const DB_PATH = path.join(process.cwd(), "data", "app.db");
 
-let db: Database.Database | null = null;
+// Cache on globalThis so Next.js dev-mode HMR reuses one connection instead of
+// leaking a new one per module reload.
+const globalForDb = globalThis as unknown as { __chatSearchDb?: Database.Database };
 
 export function getDb(): Database.Database {
-  if (db) return db;
-  db = new Database(DB_PATH);
+  if (globalForDb.__chatSearchDb) return globalForDb.__chatSearchDb;
+  const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   sqliteVec.load(db);
   migrate(db);
+  globalForDb.__chatSearchDb = db;
   return db;
 }
 
@@ -44,6 +47,20 @@ function migrate(db: Database.Database) {
       text, content='messages', content_rowid='rowid', tokenize='porter unicode61'
     );
 
+    -- External-content FTS5 must be kept in sync manually; triggers make that
+    -- automatic and ordering-proof (the 'delete' command form works even after
+    -- the content row is gone, unlike a bare DELETE against the fts table).
+    CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+      INSERT INTO messages_fts (rowid, text) VALUES (new.rowid, new.text);
+    END;
+    CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+      INSERT INTO messages_fts (messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+    END;
+    CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE OF text ON messages BEGIN
+      INSERT INTO messages_fts (messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+      INSERT INTO messages_fts (rowid, text) VALUES (new.rowid, new.text);
+    END;
+
     CREATE TABLE IF NOT EXISTS chunks (
       id INTEGER PRIMARY KEY,
       message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -71,16 +88,12 @@ export function clearSource(db: Database.Database, source: string) {
   const delChunks = db.prepare(
     "DELETE FROM chunks WHERE message_id IN (SELECT id FROM messages WHERE conversation_id = ?)"
   );
-  const delFts = db.prepare(
-    "DELETE FROM messages_fts WHERE rowid IN (SELECT rowid FROM messages WHERE conversation_id = ?)"
-  );
   const delMsgs = db.prepare("DELETE FROM messages WHERE conversation_id = ?");
   const delConvo = db.prepare("DELETE FROM conversations WHERE id = ?");
   for (const id of convoIds) {
     delVec.run(id);
     delChunks.run(id);
-    delFts.run(id);
-    delMsgs.run(id);
+    delMsgs.run(id); // messages_fts_ad trigger keeps the FTS index in sync
     delConvo.run(id);
   }
 }

@@ -21,9 +21,6 @@ export async function ingest(
     INSERT INTO messages (id, conversation_id, role, text, created_at, position, model, meta)
     VALUES (@id, @conversationId, @role, @text, @createdAt, @position, @model, @meta)
   `);
-  const insertFts = db.prepare(
-    "INSERT INTO messages_fts (rowid, text) SELECT rowid, text FROM messages WHERE id = ?"
-  );
   const insertChunk = db.prepare(
     "INSERT INTO chunks (message_id, chunk_index, text) VALUES (?, ?, ?) RETURNING id"
   );
@@ -54,8 +51,7 @@ export async function ingest(
           position: i,
           model: m.model ?? null,
           meta: m.meta ? JSON.stringify(m.meta) : null,
-        });
-        insertFts.run(msgId);
+        }); // messages_fts_ai trigger indexes the text
         chunkText(m.text).forEach((chunk, ci) => {
           const { id } = insertChunk.get(msgId, ci, chunk) as { id: number };
           allChunks.push({ chunkId: id, text: chunk });
