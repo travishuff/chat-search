@@ -40,6 +40,9 @@ a { color: inherit; }
 
 .container { max-width: 780px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
+/* long tokens (URLs, code, file paths) must wrap, not overflow */
+.result .snippet, .result h3, .msg .body, .convo-head h1 { overflow-wrap: anywhere; }
+
 /* ---- masthead ---- */
 .masthead { padding: 3.5rem 0 1.6rem; }
 .masthead h1 {
@@ -153,3 +156,37 @@ a { color: inherit; }
 .msg .who { margin-bottom: 0.35rem; color: var(--ink-faint); }
 .msg .body { white-space: pre-wrap; word-wrap: break-word; font-size: 0.97rem; }
 .msg.target { outline: 2px solid var(--claude); outline-offset: 3px; }
+
+/* ---- responsive ---- */
+
+/* comfortable touch targets on touch devices */
+@media (pointer: coarse) {
+  .chip { padding: 0.45rem 1rem; }
+  .result { padding: 1.3rem 0.25rem; }
+}
+
+/* tablets and below */
+@media (max-width: 820px) {
+  .masthead { padding: 2.5rem 0 1.3rem; }
+}
+
+/* phones */
+@media (max-width: 600px) {
+  .container { padding: 0 1rem 4rem; }
+  .masthead { padding: 1.6rem 0 1rem; }
+  .masthead .sub { font-size: 0.88rem; }
+  .masthead .counts { display: block; margin-top: 0.3rem; }
+  .searchbar { padding: 0.7rem 0.85rem; box-shadow: 3px 3px 0 var(--paper-deep); }
+  .searchbar .hint { display: none; }
+  .filters { margin: 0.85rem 0 1.6rem; }
+  .result h3 { font-size: 1.05rem; }
+  .result .meta { flex-wrap: wrap; gap: 0.35rem 0.7rem; }
+  .convo-head { padding: 1.6rem 0 1rem; }
+  .msg { padding-left: 0.75rem; padding-right: 0; margin-bottom: 1.25rem; }
+  .msg.assistant { padding: 0.8rem; }
+}
+
+/* iOS zooms the page when a focused input's font is under 16px — keep it at 16px+ */
+@media (max-width: 600px) {
+  .searchbar input { font-size: 1rem; }
+}
