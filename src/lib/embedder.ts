@@ -4,6 +4,7 @@ export const EMBEDDING_DIM = 384;
 const MODEL = "Xenova/bge-small-en-v1.5";
 // BGE models want a query prefix for retrieval queries, none for passages.
 const QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
+const DETERMINISTIC_MODE = "deterministic";
 
 let pipelinePromise: Promise<any> | null = null;
 
@@ -31,12 +32,39 @@ async function embed(texts: string[]): Promise<Float32Array[]> {
 }
 
 export async function embedPassages(texts: string[]): Promise<Float32Array[]> {
+  if (process.env.CHAT_SEARCH_EMBEDDING_MODE === DETERMINISTIC_MODE) {
+    return texts.map(deterministicEmbedding);
+  }
   return embed(texts);
 }
 
 export async function embedQuery(text: string): Promise<Float32Array> {
+  if (process.env.CHAT_SEARCH_EMBEDDING_MODE === DETERMINISTIC_MODE) {
+    return deterministicEmbedding(text);
+  }
   const [v] = await embed([QUERY_PREFIX + text]);
   return v;
+}
+
+/** Stable local embeddings for hermetic tests; not intended for production retrieval quality. */
+function deterministicEmbedding(text: string): Float32Array {
+  const vector = new Float32Array(EMBEDDING_DIM);
+  const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  for (const token of tokens) {
+    let hash = 2166136261;
+    for (let i = 0; i < token.length; i++) {
+      hash = Math.imul(hash ^ token.charCodeAt(i), 16777619);
+    }
+    vector[(hash >>> 0) % EMBEDDING_DIM] += 1;
+  }
+
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+  if (!norm) {
+    vector[0] = 1;
+    return vector;
+  }
+  for (let i = 0; i < vector.length; i++) vector[i] /= norm;
+  return vector;
 }
 
 /** Split text into ~chunks of at most maxChars, preferring paragraph breaks. */

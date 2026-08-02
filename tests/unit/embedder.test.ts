@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { chunkText } from "@/lib/embedder";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { chunkText, embedPassages, embedQuery } from "@/lib/embedder";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("chunkText", () => {
   it("does not create chunks for empty text", () => {
@@ -16,5 +18,16 @@ describe("chunkText", () => {
 
   it("hard-splits oversized paragraphs and removes empty chunks", () => {
     expect(chunkText(`\n\n${"x".repeat(12)}\n\n`, 5)).toEqual(["xxxxx", "xxxxx", "xx"]);
+  });
+
+  it("provides normalized, repeatable embeddings without loading a model in deterministic mode", async () => {
+    vi.stubEnv("CHAT_SEARCH_EMBEDDING_MODE", "deterministic");
+
+    const [passage] = await embedPassages(["Quasar light"]);
+    const query = await embedQuery("Quasar light");
+
+    expect(passage).toEqual(query);
+    expect(passage).toHaveLength(384);
+    expect(Math.hypot(...passage)).toBeCloseTo(1);
   });
 });
