@@ -25,10 +25,12 @@ export default defineConfig({
     // so the seed must be part of the server command.
     command: "npx tsx tests/e2e/seed.ts && npm run dev -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",
-    reuseExistingServer: !process.env.CI,
+    // Never attach to an arbitrary local app that may be using personal data.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       CHAT_SEARCH_DB_PATH: E2E_DB_PATH,
+      CHAT_SEARCH_EMBEDDING_MODE: "deterministic",
       NEXT_TELEMETRY_DISABLED: "1",
     },
   },

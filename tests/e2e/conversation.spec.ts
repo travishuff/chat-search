@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-// These tests run against the seeded database from global-setup.ts and do NOT
+// These tests run against the database seeded by the Playwright webServer command and do NOT
 // mock /api/search — they exercise the full stack (UI → route → SQLite → RRF).
-// The first search triggers the server's embedding-model load, hence the
-// generous visibility timeout.
+// Deterministic local embeddings keep the suite hermetic while exercising KNN.
 
 test("full-stack search returns seeded results from the real API", async ({ page }) => {
   await page.goto("/");
@@ -12,7 +11,7 @@ test("full-stack search returns seeded results from the real API", async ({ page
   await page.getByPlaceholder("that conversation where I asked about…").fill("quasar");
 
   const result = page.getByRole("link", { name: /Quasar observations/ }).first();
-  await expect(result).toBeVisible({ timeout: 60_000 });
+  await expect(result).toBeVisible();
   await expect(result).toContainText("Jul 10, 2025");
   await expect(result.locator("mark").first()).toHaveText(/quasar/i);
 
@@ -20,7 +19,7 @@ test("full-stack search returns seeded results from the real API", async ({ page
   await page.getByRole("button", { name: "Claude" }).click();
   await page.getByPlaceholder("that conversation where I asked about…").fill("sourdough starter");
   const claudeResult = page.getByRole("link", { name: /Sourdough starter help/ }).first();
-  await expect(claudeResult).toBeVisible({ timeout: 60_000 });
+  await expect(claudeResult).toBeVisible();
   await expect(page.getByRole("link", { name: /Quasar observations/ })).toHaveCount(0);
 });
 
@@ -35,7 +34,7 @@ test("clicking a result opens the conversation, decodes the id, highlights and s
     .getByRole("link", { name: /Quasar observations/ })
     .filter({ hasText: "reply" })
     .first();
-  await expect(replyResult).toBeVisible({ timeout: 60_000 });
+  await expect(replyResult).toBeVisible();
   await replyResult.click();
 
   // The conversation id contains a colon — this asserts the encode/decode
@@ -57,4 +56,14 @@ test("clicking a result opens the conversation, decodes the id, highlights and s
 
   await page.getByRole("link", { name: "← back to search" }).click();
   await expect(page).toHaveURL(/\/$/);
+});
+
+test("missing conversation ids, including encoded percent characters, return the not-found page", async ({
+  page,
+}) => {
+  for (const path of ["/c/chatgpt%3Amissing", "/c/100%25"]) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(404);
+    await expect(page.getByText("This page could not be found.")).toBeVisible();
+  }
 });
