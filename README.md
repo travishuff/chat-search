@@ -13,6 +13,17 @@ npm run import             # (re)build the index from data/raw — idempotent pe
 npm run import chatgpt     # rebuild a single source
 ```
 
+## Testing
+
+```bash
+npm test                   # unit and integration tests
+npm run test:coverage      # coverage report
+npx playwright install chromium  # first browser-test run only
+npm run test:e2e           # end-to-end test against a local test database
+npm run typecheck
+npm run build
+```
+
 ## Adding / refreshing data
 
 Drop exports under `data/raw/` and run `npm run import`:
