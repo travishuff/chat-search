@@ -32,29 +32,36 @@ export default function SearchApp({
   const total = counts.reduce((n, c) => n + c.n, 0);
 
   useEffect(() => {
+    abortRef.current?.abort();
     const query = q.trim();
     if (!query) {
+      abortRef.current = null;
       setResults(null);
       setLoading(false);
       return;
     }
     setLoading(true);
+    let ctrl: AbortController | null = null;
     const t = setTimeout(async () => {
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
+      ctrl = new AbortController();
       abortRef.current = ctrl;
       try {
         const params = new URLSearchParams({ q: query });
         if (active.length) params.set("sources", active.join(","));
         const res = await fetch(`/api/search?${params}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`search failed with status ${res.status}`);
         const data = await res.json();
-        setResults(data.results);
-        setLoading(false);
+        setResults(Array.isArray(data.results) ? data.results : []);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") setLoading(false);
+        if ((e as Error).name !== "AbortError") setResults([]);
+      } finally {
+        if (abortRef.current === ctrl) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      ctrl?.abort();
+    };
   }, [q, active]);
 
   const toggle = (s: string) =>

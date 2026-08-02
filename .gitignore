@@ -6,3 +6,8 @@ node_modules/
 *.tsbuildinfo
 next-env.d.ts
 .model-cache/
+
+# generated test artifacts
+coverage/
+playwright-report/
+test-results/

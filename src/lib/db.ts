@@ -2,19 +2,24 @@ import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import path from "path";
 
-const DB_PATH = path.join(process.cwd(), "data", "app.db");
-
 // Cache on globalThis so Next.js dev-mode HMR reuses one connection instead of
 // leaking a new one per module reload.
 const globalForDb = globalThis as unknown as { __chatSearchDb?: Database.Database };
 
 export function getDb(): Database.Database {
   if (globalForDb.__chatSearchDb) return globalForDb.__chatSearchDb;
-  const db = new Database(DB_PATH);
+  const dbPath = process.env.CHAT_SEARCH_DB_PATH ?? path.join(process.cwd(), "data", "app.db");
+  const db = createDb(dbPath);
+  globalForDb.__chatSearchDb = db;
+  return db;
+}
+
+/** Open and initialize a database. Exported so tests and tools can use an isolated database. */
+export function createDb(dbPath: string): Database.Database {
+  const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   sqliteVec.load(db);
   migrate(db);
-  globalForDb.__chatSearchDb = db;
   return db;
 }
 

@@ -41,6 +41,7 @@ export async function embedQuery(text: string): Promise<Float32Array> {
 
 /** Split text into ~chunks of at most maxChars, preferring paragraph breaks. */
 export function chunkText(text: string, maxChars = 1500): string[] {
+  if (!text.trim()) return [];
   if (text.length <= maxChars) return [text];
   const paras = text.split(/\n{2,}/);
   const chunks: string[] = [];
