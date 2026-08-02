@@ -18,18 +18,33 @@ const LABELS: Record<string, string> = { gemini: "Gemini", claude: "Claude", cha
 export default function SearchApp({
   counts,
   range,
+  initialQuery = "",
+  initialSources = [],
 }: {
   counts: { source: string; n: number }[];
   range: { lo: number | null; hi: number | null };
+  initialQuery?: string;
+  initialSources?: string[];
 }) {
-  const [q, setQ] = useState("");
-  const [active, setActive] = useState<string[]>([]);
+  const [q, setQ] = useState(initialQuery);
+  const [active, setActive] = useState<string[]>(initialSources);
   const [results, setResults] = useState<Result[] | null>(null);
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const countBySource = useMemo(() => Object.fromEntries(counts.map((c) => [c.source, c.n])), [counts]);
   const total = counts.reduce((n, c) => n + c.n, 0);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const query = q.trim();
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+    if (active.length) url.searchParams.set("sources", active.join(","));
+    else url.searchParams.delete("sources");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [q, active]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -67,6 +82,20 @@ export default function SearchApp({
   const toggle = (s: string) =>
     setActive((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
+  const clearSearch = () => {
+    setQ("");
+    setActive([]);
+    inputRef.current?.focus();
+  };
+
+  const resultHref = (result: Result) => {
+    const params = new URLSearchParams({ m: result.messageId });
+    const query = q.trim();
+    if (query) params.set("q", query);
+    if (active.length) params.set("sources", active.join(","));
+    return `/c/${encodeURIComponent(result.conversationId)}?${params}`;
+  };
+
   const fmtDate = (ms: number | null) =>
     ms ? new Date(ms).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "";
 
@@ -78,9 +107,7 @@ export default function SearchApp({
   return (
     <main className="container">
       <header className="masthead">
-        <h1>
-          Recall<em>,</em> <em>an archive of conversations</em>
-        </h1>
+        <h1>Recall - across AI chatbots</h1>
         <p className="sub">
           Everything you have asked your machines, {years}.{" "}
           <span className="counts mono">
@@ -92,12 +119,17 @@ export default function SearchApp({
 
       <div className="searchbar">
         <input
+          ref={inputRef}
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="that conversation where I asked about…"
         />
-        <span className="hint mono">{loading ? "searching" : "hybrid"}</span>
+        {(q || active.length > 0) && (
+          <button type="button" className="clear-search mono" onClick={clearSearch}>
+            clear
+          </button>
+        )}
       </div>
 
       <div className="filters">
@@ -122,7 +154,7 @@ export default function SearchApp({
         <a
           key={r.messageId}
           className="result"
-          href={`/c/${encodeURIComponent(r.conversationId)}?m=${encodeURIComponent(r.messageId)}`}
+          href={resultHref(r)}
         >
           <div className="meta mono">
             <span className={`src ${r.source}`}>{LABELS[r.source] ?? r.source}</span>

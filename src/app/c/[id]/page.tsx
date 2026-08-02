@@ -12,10 +12,10 @@ export default async function ConversationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; q?: string; sources?: string }>;
 }) {
   const { id } = await params;
-  const { m: targetMessageId } = await searchParams;
+  const { m: targetMessageId, q, sources } = await searchParams;
   const db = getDb();
 
   // Next 15 App Router passes route params still percent-encoded (e.g. "claude%3Auuid").
@@ -42,11 +42,20 @@ export default async function ConversationPage({
         })
       : "";
 
+  const returnParams = new URLSearchParams();
+  if (q?.trim()) returnParams.set("q", q.trim());
+  const returnSources = sources
+    ?.split(",")
+    .filter((source) => source in LABELS)
+    .join(",");
+  if (returnSources) returnParams.set("sources", returnSources);
+  const backHref = returnParams.size ? `/?${returnParams}` : "/";
+
   return (
     <main className="container">
       <ScrollToTarget targetId={targetMessageId} />
       <header className="convo-head">
-        <Link href="/" className="back mono">
+        <Link href={backHref} className="back mono">
           ← back to search
         </Link>
         <h1>{convo.title}</h1>

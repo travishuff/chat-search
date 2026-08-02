@@ -55,7 +55,15 @@ test("clicking a result opens the conversation, decodes the id, highlights and s
   await expect(target).toBeInViewport();
 
   await page.getByRole("link", { name: "← back to search" }).click();
+  await expect(page).toHaveURL(/\/\?q=quasar$/);
+  const restoredSearch = page.getByPlaceholder("that conversation where I asked about…");
+  await expect(restoredSearch).toHaveValue("quasar");
+  await expect(page.getByRole("link", { name: /Quasar observations/ }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "clear" }).click();
+  await expect(restoredSearch).toHaveValue("");
   await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText(/Type to search 2 conversations/)).toBeVisible();
 });
 
 test("missing conversation ids, including encoded percent characters, return the not-found page", async ({

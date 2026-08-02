@@ -10,6 +10,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
+  window.history.replaceState({}, "", "/");
 });
 
 afterEach(() => {
@@ -76,7 +77,7 @@ describe("SearchApp", () => {
     const result = screen.getByRole("link", { name: /Stellar formation/ });
     expect(result).toHaveAttribute(
       "href",
-      "/c/chatgpt%3Aconversation%2F1?m=chatgpt%3Aconversation%2F1%3A2"
+      "/c/chatgpt%3Aconversation%2F1?m=chatgpt%3Aconversation%2F1%3A2&q=stars&sources=chatgpt"
     );
     expect(within(result).getByText("Stars", { selector: "mark" })).toBeVisible();
     expect(result).toHaveTextContent("reply");
@@ -111,6 +112,36 @@ describe("SearchApp", () => {
     });
 
     expect(screen.getByText(/Nothing surfaced/)).toBeVisible();
-    expect(screen.getByText("hybrid")).toBeVisible();
+  });
+
+  it("restores URL-backed search state and clears the query and filters", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+    window.history.replaceState({}, "", "/?q=stars&sources=chatgpt");
+    render(
+      <SearchApp
+        counts={[{ source: "chatgpt", n: 2 }]}
+        range={{ lo: null, hi: null }}
+        initialQuery="stars"
+        initialSources={["chatgpt"]}
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/that conversation/);
+    expect(input).toHaveValue("stars");
+    expect(screen.getByRole("button", { name: "ChatGPT" })).toHaveClass("active");
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/search?q=stars&sources=chatgpt");
+
+    fireEvent.click(screen.getByRole("button", { name: "clear" }));
+
+    expect(input).toHaveValue("");
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: "ChatGPT" })).not.toHaveClass("active");
+    expect(screen.queryByRole("button", { name: "clear" })).not.toBeInTheDocument();
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/");
   });
 });
