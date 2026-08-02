@@ -83,7 +83,14 @@ a { color: inherit; }
   color: var(--ink);
 }
 .searchbar input::placeholder { color: var(--ink-faint); font-style: italic; }
-.searchbar .hint { color: var(--ink-faint); }
+.clear-search {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+.clear-search:hover, .clear-search:focus-visible { color: var(--ink); }
 
 /* ---- filters ---- */
 .filters { display: flex; gap: 0.5rem; margin: 1rem 0 2.2rem; flex-wrap: wrap; }
@@ -177,7 +184,6 @@ a { color: inherit; }
   .masthead .sub { font-size: 0.88rem; }
   .masthead .counts { display: block; margin-top: 0.3rem; }
   .searchbar { padding: 0.7rem 0.85rem; box-shadow: 3px 3px 0 var(--paper-deep); }
-  .searchbar .hint { display: none; }
   .filters { margin: 0.85rem 0 1.6rem; }
   .result h3 { font-size: 1.05rem; }
   .result .meta { flex-wrap: wrap; gap: 0.35rem 0.7rem; }

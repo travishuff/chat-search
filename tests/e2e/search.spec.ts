@@ -29,7 +29,7 @@ test("searches from the home page and renders a navigable highlighted result", a
   await expect(result).toBeVisible();
   await expect(result).toHaveAttribute(
     "href",
-    "/c/chatgpt%3Aspace-chat?m=chatgpt%3Aspace-chat%3A3"
+    "/c/chatgpt%3Aspace-chat?m=chatgpt%3Aspace-chat%3A3&q=stellar+nursery"
   );
   await expect(result.locator("mark")).toHaveText(["stellar", "nursery"]);
   await expect(result).toContainText("Jul 10, 2025");
