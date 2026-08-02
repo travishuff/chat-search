@@ -20,8 +20,10 @@ const SOURCES = [
     parse: parseClaude,
   },
   {
+    // Directory: current exports shard into conversations-NNN.json; the parser
+    // also accepts a legacy single conversations.json inside it.
     source: "chatgpt",
-    file: path.join(RAW, "chatgpt", "conversations.json"),
+    file: path.join(RAW, "chatgpt"),
     parse: parseChatGPT,
   },
 ];
