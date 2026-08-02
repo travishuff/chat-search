@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { UnifiedConversation, UnifiedMessage } from "./types";
 
 /**
@@ -31,8 +32,23 @@ interface ChatGPTConversation {
   mapping: Record<string, ChatGPTNode>;
 }
 
-export function parseChatGPT(conversationsJsonPath: string): UnifiedConversation[] {
-  const data: ChatGPTConversation[] = JSON.parse(fs.readFileSync(conversationsJsonPath, "utf-8"));
+/**
+ * Accepts either a single conversations.json (pre-2026 exports) or a directory
+ * containing sharded conversations-NNN.json files (current exports).
+ */
+export function parseChatGPT(jsonPathOrDir: string): UnifiedConversation[] {
+  const files = fs.statSync(jsonPathOrDir).isDirectory()
+    ? fs
+        .readdirSync(jsonPathOrDir)
+        .filter((f) => /^conversations(-\d+)?\.json$/.test(f))
+        .sort()
+        .map((f) => path.join(jsonPathOrDir, f))
+    : [jsonPathOrDir];
+  if (!files.length) {
+    console.warn(`[chatgpt] no conversations*.json found in ${jsonPathOrDir}`);
+    return [];
+  }
+  const data: ChatGPTConversation[] = files.flatMap((f) => JSON.parse(fs.readFileSync(f, "utf-8")));
 
   return data
     .map((c) => {
