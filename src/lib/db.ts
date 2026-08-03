@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
+import fs from "node:fs";
 import path from "path";
 
 // Cache on globalThis so Next.js dev-mode HMR reuses one connection instead of
@@ -8,7 +9,14 @@ const globalForDb = globalThis as unknown as { __chatSearchDb?: Database.Databas
 
 export function getDb(): Database.Database {
   if (globalForDb.__chatSearchDb) return globalForDb.__chatSearchDb;
-  const dbPath = process.env.CHAT_SEARCH_DB_PATH ?? path.join(process.cwd(), "data", "app.db");
+  const configuredPath = process.env.CHAT_SEARCH_DB_PATH;
+  if (process.env.NODE_ENV === "production" && !configuredPath) {
+    throw new Error("CHAT_SEARCH_DB_PATH is required in production");
+  }
+  const dbPath = configuredPath ?? path.join(process.cwd(), "data", "app.db");
+  if (process.env.NODE_ENV === "production" && !fs.existsSync(dbPath)) {
+    throw new Error(`Production database does not exist at ${dbPath}`);
+  }
   const db = createDb(dbPath);
   globalForDb.__chatSearchDb = db;
   return db;
@@ -16,6 +24,7 @@ export function getDb(): Database.Database {
 
 /** Open and initialize a database. Exported so tests and tools can use an isolated database. */
 export function createDb(dbPath: string): Database.Database {
+  if (dbPath !== ":memory:") fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   sqliteVec.load(db);

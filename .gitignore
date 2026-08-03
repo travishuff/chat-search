@@ -1,5 +1,8 @@
 # personal chat data — never commit
 data/
+.deploy/
+.env*
+!.env.example
 
 node_modules/
 .next/
