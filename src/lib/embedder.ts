@@ -12,7 +12,7 @@ async function getPipeline() {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
       const { pipeline, env } = await import("@huggingface/transformers");
-      env.cacheDir = path.join(process.cwd(), ".model-cache");
+      env.cacheDir = process.env.CHAT_SEARCH_MODEL_CACHE_DIR ?? path.join(process.cwd(), ".model-cache");
       return pipeline("feature-extraction", MODEL, { dtype: "fp32" });
     })();
   }

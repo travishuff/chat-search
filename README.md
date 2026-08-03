@@ -24,6 +24,17 @@ npm run typecheck
 npm run build
 ```
 
+## Deployment
+
+The app can be deployed as a private server-side Next.js application through
+Hostinger's managed Node.js GitHub integration. Hostinger connects to the
+dedicated `hostinger-production` branch, and `npm run deploy:hostinger` is the
+explicit release trigger; normal pushes to `main` do not deploy. Because the
+archive contains private conversations and depends on a persistent SQLite file,
+follow the authentication, storage, environment-variable, and database-upload
+steps in [the Hostinger deployment guide](docs/hostinger-deployment.md). Never
+commit the database or raw exports to GitHub.
+
 ## Adding / refreshing data
 
 Drop exports under `data/raw/` and run `npm run import`:
@@ -50,7 +61,8 @@ so re-importing a newer export is always safe.
 
 ## Security
 
-There is **no authentication**. The app is meant to run on `localhost` only —
-anyone who can reach the server can read your entire AI conversation history.
-Do not bind it to other interfaces (`next dev -H 0.0.0.0`) or run `next start`
-on a shared network without putting auth in front of it.
+Local development does not require authentication. Production fails closed
+unless `RECALL_AUTH_USERNAME` and `RECALL_AUTH_PASSWORD` are configured. The
+resulting HTTP Basic Authentication must only be used over HTTPS. Anyone with
+those credentials can read the entire archive, so use a long unique password
+and do not share or commit it.

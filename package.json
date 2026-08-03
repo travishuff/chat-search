@@ -2,11 +2,16 @@
   "name": "chat-search",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "import": "tsx scripts/import.ts",
+    "export:deployment-db": "tsx scripts/export-deployment-db.ts",
+    "deploy:hostinger": "tsx scripts/deploy-hostinger.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
